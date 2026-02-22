@@ -1,7 +1,6 @@
 """Communities page - cluster visualization and LLM interpretation."""
 
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 
 from decentralizer.storage.database import get_connection
@@ -21,6 +20,19 @@ def _load_graph(chain_id: int):
     return build_graph(conn, chain_id=chain_id, financial_only=True)
 
 
+@st.cache_data(ttl=300)
+def _detect_communities(chain_id: int, algorithm: str, resolution: float):
+    G = _load_graph(chain_id)
+    if G.number_of_nodes() == 0:
+        return None, None, G
+    if algorithm == "Louvain":
+        comm_df = louvain_communities(G, resolution=resolution)
+    else:
+        comm_df = label_propagation(G)
+    stats_df = community_stats(G, comm_df)
+    return comm_df, stats_df, G
+
+
 st.title("Community Detection")
 
 chain_id = st.sidebar.selectbox("Chain", [1, 42161, 10, 8453, 137], format_func=lambda x: {
@@ -30,19 +42,11 @@ chain_id = st.sidebar.selectbox("Chain", [1, 42161, 10, 8453, 137], format_func=
 algorithm = st.sidebar.selectbox("Algorithm", ["Louvain", "Label Propagation"])
 resolution = st.sidebar.slider("Resolution (Louvain)", 0.1, 3.0, 1.0, step=0.1) if algorithm == "Louvain" else 1.0
 
-G = _load_graph(chain_id)
+comm_df, stats_df, G = _detect_communities(chain_id, algorithm, resolution)
 
-if G.number_of_nodes() == 0:
+if comm_df is None or G.number_of_nodes() == 0:
     st.warning("No graph data available.")
 else:
-    with st.spinner(f"Running {algorithm} community detection..."):
-        if algorithm == "Louvain":
-            comm_df = louvain_communities(G, resolution=resolution)
-        else:
-            comm_df = label_propagation(G)
-
-        stats_df = community_stats(G, comm_df)
-
     st.subheader("Community Overview")
     c1, c2, c3 = st.columns(3)
     c1.metric("Communities Found", len(stats_df))

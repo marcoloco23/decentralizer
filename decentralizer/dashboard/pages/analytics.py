@@ -1,7 +1,6 @@
 """Graph Analytics page - PageRank, influence, centrality, recommendations."""
 
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 
 from decentralizer.storage.database import get_connection
@@ -18,6 +17,31 @@ def _get_db():
 def _load_graph(chain_id: int, financial_only: bool):
     conn = _get_db()
     return build_graph(conn, chain_id=chain_id, financial_only=financial_only)
+
+
+@st.cache_data(ttl=300)
+def _page_rank(chain_id: int, financial_only: bool, top_k: int):
+    G = _load_graph(chain_id, financial_only)
+    return algo.page_rank(G, top_k=top_k)
+
+
+@st.cache_data(ttl=300)
+def _weighted_page_rank(chain_id: int, financial_only: bool, top_k: int):
+    G = _load_graph(chain_id, financial_only)
+    return algo.weighted_page_rank(G, top_k=top_k)
+
+
+@st.cache_data(ttl=300)
+def _betweenness(chain_id: int, financial_only: bool, top_k: int, use_approx: bool):
+    G = _load_graph(chain_id, financial_only)
+    k_sample = min(500, G.number_of_nodes()) if use_approx else None
+    return algo.betweenness_centrality(G, top_k=top_k, k_sample=k_sample)
+
+
+@st.cache_data(ttl=300)
+def _clustering(chain_id: int, financial_only: bool, top_k: int):
+    G = _load_graph(chain_id, financial_only)
+    return algo.clustering_coefficients(G, top_k=top_k)
 
 
 st.title("Graph Analytics")
@@ -48,8 +72,7 @@ else:
 
     with tab1:
         st.subheader("PageRank")
-        with st.spinner("Computing PageRank..."):
-            pr_df = algo.page_rank(G, top_k=top_k)
+        pr_df = _page_rank(chain_id, financial_only, top_k)
         st.dataframe(pr_df, use_container_width=True)
         if not pr_df.empty and "page_rank_pct" in pr_df.columns:
             fig = px.bar(pr_df.head(20), x="address", y="page_rank_pct",
@@ -59,8 +82,7 @@ else:
 
     with tab2:
         st.subheader("Weighted PageRank")
-        with st.spinner("Computing Weighted PageRank..."):
-            wpr_df = algo.weighted_page_rank(G, top_k=top_k)
+        wpr_df = _weighted_page_rank(chain_id, financial_only, top_k)
         st.dataframe(wpr_df, use_container_width=True)
 
     with tab3:
@@ -73,15 +95,11 @@ else:
     with tab4:
         st.subheader("Betweenness Centrality")
         use_approx = st.checkbox("Use approximate (faster)", value=G.number_of_nodes() > 10000)
-        with st.spinner("Computing Centrality..."):
-            bc_df = algo.betweenness_centrality(
-                G, top_k=top_k, k_sample=min(500, G.number_of_nodes()) if use_approx else None
-            )
+        bc_df = _betweenness(chain_id, financial_only, top_k, use_approx)
         st.dataframe(bc_df, use_container_width=True)
 
         st.subheader("Clustering Coefficients")
-        with st.spinner("Computing Clustering..."):
-            cc_df = algo.clustering_coefficients(G, top_k=top_k)
+        cc_df = _clustering(chain_id, financial_only, top_k)
         st.dataframe(cc_df, use_container_width=True)
 
     with tab5:

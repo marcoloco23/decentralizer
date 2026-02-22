@@ -1,9 +1,7 @@
-"""Graph Visualization page - interactive pyvis graph."""
+"""Graph Visualization page - interactive pyvis graph. Optimized for large datasets."""
 
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
-from pyvis.network import Network
 
 from decentralizer.storage.database import get_connection, get_edge_dataframe
 
@@ -11,6 +9,50 @@ from decentralizer.storage.database import get_connection, get_edge_dataframe
 @st.cache_resource
 def _get_db():
     return get_connection()
+
+
+@st.cache_data(ttl=300)
+def _build_graph_html(chain_id: int, financial_only: bool, non_financial: bool, cutoff: int) -> str | None:
+    """Build pyvis HTML with SQL-level limiting. Cached to avoid recomputation."""
+    from pyvis.network import Network
+
+    conn = _get_db()
+    df = get_edge_dataframe(conn, chain_id=chain_id, financial_only=financial_only, limit=cutoff)
+
+    if non_financial:
+        df = df[df["value"] == 0]
+
+    if df.empty:
+        return None
+
+    net = Network(height="700px", width="100%", directed=True, bgcolor="#0e1117", font_color="white")
+    net.barnes_hut(gravity=-5000, central_gravity=0.3, spring_length=100)
+
+    # Vectorized: collect unique nodes first, then add in bulk
+    senders = df["sender"].values
+    receivers = df["receiver"].values
+    values = df["value"].values
+    block_numbers = df["block_number"].values
+
+    seen = set()
+    for s in senders:
+        if s not in seen:
+            seen.add(s)
+            net.add_node(s, label=s[:10] + "...", title=s)
+    for r in receivers:
+        if r not in seen:
+            seen.add(r)
+            net.add_node(r, label=r[:10] + "...", title=r)
+
+    # Add edges
+    for i in range(len(df)):
+        net.add_edge(
+            senders[i], receivers[i],
+            title=f"Value: {values[i]:.4f} ETH\nBlock: {block_numbers[i]}",
+            value=max(values[i], 0.1),
+        )
+
+    return net.generate_html()
 
 
 st.title("Graph Visualization")
@@ -27,31 +69,13 @@ tx_type = st.sidebar.selectbox("Transaction Type", [
 
 cutoff = st.sidebar.slider("Max Edges", min_value=100, max_value=50000, value=2000, step=100)
 
-conn = _get_db()
 financial_only = tx_type == "Financial Only (value > 0)"
-df = get_edge_dataframe(conn, chain_id=chain_id, financial_only=financial_only)
+non_financial = tx_type == "Non-Financial Only (value = 0)"
 
-if tx_type == "Non-Financial Only (value = 0)":
-    df = df[df["value"] == 0]
+with st.spinner("Building graph visualization..."):
+    html = _build_graph_html(chain_id, financial_only, non_financial, cutoff)
 
-if df.empty:
+if html is None:
     st.warning("No transaction data available. Run `decentralizer migrate` first.")
 else:
-    df = df.head(cutoff)
-
-    st.info(f"Showing {len(df)} edges with {df['sender'].nunique() + df['receiver'].nunique()} unique addresses")
-
-    # Build pyvis network
-    net = Network(height="700px", width="100%", directed=True, bgcolor="#0e1117", font_color="white")
-    net.barnes_hut(gravity=-5000, central_gravity=0.3, spring_length=100)
-
-    # Add edges (pyvis auto-creates nodes)
-    for _, row in df.iterrows():
-        net.add_node(row["sender"], label=row["sender"][:10] + "...", title=row["sender"])
-        net.add_node(row["receiver"], label=row["receiver"][:10] + "...", title=row["receiver"])
-        title = f"Value: {row['value']:.4f} ETH\nBlock: {row['block_number']}"
-        net.add_edge(row["sender"], row["receiver"], title=title, value=max(row["value"], 0.1))
-
-    # Render
-    html = net.generate_html()
     components.html(html, height=720, scrolling=True)
