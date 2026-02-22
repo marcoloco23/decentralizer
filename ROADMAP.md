@@ -2,24 +2,27 @@
 
 ## What Is This?
 
-Decentralizer is a **blockchain network intelligence platform** that treats Ethereum (and other EVM chains) as a social network. Instead of looking at individual transactions, it analyzes the *graph structure* of who transacts with whom to answer questions like:
+Decentralizer is an **on-chain intelligence platform for traders and investors**. It maps the hidden network structure of blockchain transactions to give you an edge that price charts alone can't provide.
 
-- **Who are the most influential addresses?** (PageRank, influence maximization)
-- **Which addresses behave similarly?** (community detection, address recommendations)
-- **What are the hidden clusters?** (Louvain communities — exchanges, DeFi protocols, MEV bots, wash traders)
-- **Which addresses are anomalous?** (GNN-based anomaly detection)
-- **Will two addresses transact in the future?** (link prediction)
+Every token swap, every whale transfer, every fund movement creates a connection in a massive graph. Decentralizer analyzes that graph to answer the questions that matter:
 
-### Real-World Use Cases
+- **Where is smart money flowing right now?** — Track wallets with the highest network influence across DeFi
+- **Which wallets are accumulating before a move?** — Detect coordinated buying patterns across wallet clusters
+- **Who are the whales connected to?** — Map the transaction network around any address to understand who they trade with
+- **Is this a real trend or wash trading?** — Community detection separates organic activity from artificial volume
+- **What will this wallet do next?** — GNN-based link prediction forecasts future transaction connections
 
-| Who | What They'd Use It For |
+### The Edge
+
+Most trading tools show you *what* happened (price, volume, TVL). Decentralizer shows you *who* is behind it and *how* they're connected. A token pumping 50% means nothing without context. That same pump driven by a cluster of wallets that preceded 3 previous 10x plays — that's signal.
+
+| Traditional Tools | Decentralizer |
 |---|---|
-| **Security researchers** | Trace fund flows from exploits/hacks, identify mixers and laundering patterns |
-| **Compliance teams** | Map address clusters to identify sanctioned entity interactions |
-| **DeFi analysts** | Understand protocol usage patterns, find whale behavior clusters |
-| **MEV researchers** | Identify searcher networks, builder-proposer relationships |
-| **Academic researchers** | Study network effects in decentralized systems |
-| **Investors/traders** | Track smart money movements, find alpha in network patterns |
+| Price charts, candlesticks | Who is buying and their track record |
+| Total volume | Real vs. wash volume (community detection) |
+| Whale alert: "100 ETH moved" | Where it came from, where it's going, and the full network around it |
+| Token holder count | Holder *network* — are they connected or independent? |
+| "Smart money" labels (manual) | Algorithmic smart money scoring via PageRank + influence analysis |
 
 ---
 
@@ -32,13 +35,12 @@ Decentralizer is a **blockchain network intelligence platform** that treats Ethe
 - [x] Legacy CSV migration from v1
 
 ### Graph Analysis
-- [x] PageRank / Weighted PageRank / Personalized PageRank
-- [x] Influence maximization (greedy)
-- [x] Betweenness centrality (igraph, approximate for large graphs)
-- [x] Clustering coefficients
-- [x] Community detection (Louvain, Label Propagation via igraph)
-- [x] Address recommendations (cosine similarity on neighbor overlap)
-- [x] K-core decomposition
+- [x] PageRank / Weighted PageRank — rank wallets by network influence
+- [x] Influence maximization — find wallets that reach the most other wallets
+- [x] Betweenness centrality — find bridge wallets connecting separate clusters
+- [x] Community detection (Louvain, Label Propagation) — group wallets into clusters
+- [x] Address recommendations — "wallets similar to this one"
+- [x] K-core decomposition — find the densely connected core of the network
 
 ### Machine Learning
 - [x] GraphSAGE and GAT node embeddings (PyTorch Geometric)
@@ -47,80 +49,96 @@ Decentralizer is a **blockchain network intelligence platform** that treats Ethe
 - [x] Claude LLM integration for natural language queries
 
 ### Dashboard
-- [x] Address Explorer (search, metrics, transaction history)
+- [x] Address Explorer — search any wallet, view metrics and transaction history
 - [x] Interactive graph visualization (pyvis)
-- [x] Graph analytics (all algorithms in tabbed view)
+- [x] Graph analytics with all algorithms
 - [x] Community detection & exploration
 - [x] ML predictions page
-- [x] AI chat interface
+- [x] AI chat — ask questions in plain English
 
 ### Performance
-- [x] igraph C backend for expensive algorithms (13-127x speedup)
-- [x] SQL indexes and targeted queries (no full table scans)
-- [x] Cached algorithm results in dashboard (5min TTL)
+- [x] igraph C backend (13-127x speedup over pure Python)
+- [x] SQL indexes and targeted queries
+- [x] Cached results in dashboard
 
 ---
 
 ## Roadmap
 
-### Phase 1: Data Quality & Scale
+### Phase 1: Smart Money Tracking
 
-**Goal**: Go from "demo with 1000 blocks" to "production with millions of transactions"
+**Goal**: Identify and follow the wallets that consistently make profitable trades
 
-- [ ] **Incremental fetching** — Track last fetched block per chain, only fetch new blocks. Currently refetches from latest every time.
-- [ ] **Historical backfill** — Fetch specific block ranges (e.g., "all blocks from Jan 2024"). Add `--start-block` / `--end-block` CLI flags.
-- [ ] **Contract labeling** — Integrate Etherscan/4byte verified contract labels. Know that `0xdAC1...` is "USDT" not just an address hash.
-- [ ] **Token transfers** — Parse ERC-20 Transfer events from transaction logs. Currently only captures native ETH value, missing the majority of DeFi activity.
-- [ ] **Internal transactions** — Fetch trace data for contract-to-contract calls. These are invisible in normal transactions but represent significant fund flows.
-- [ ] **Multi-chain correlation** — Detect the same entity operating across chains (bridge activity, cross-chain arbitrage).
+- [ ] **ERC-20 token transfers** — Parse Transfer events from transaction logs. Currently only tracks native ETH. This is the single biggest gap — most DeFi alpha is in token movements, not raw ETH.
+- [ ] **DEX trade reconstruction** — Decode Uniswap/Sushiswap/Curve swap events to know exactly what tokens a wallet bought and sold, at what price, and what their P&L was.
+- [ ] **Wallet P&L scoring** — Calculate realized + unrealized P&L per wallet. The wallets with the best track records are the ones worth following.
+- [ ] **Smart money index** — Composite score: PageRank (network influence) + P&L track record + early entry frequency + portfolio concentration. Rank the top 1000 wallets across each chain.
+- [ ] **Wallet watchlists** — Save wallets to a personal watchlist. See their recent activity, current holdings, and network position at a glance.
+- [ ] **Contract labeling** — Integrate Etherscan verified labels + community-maintained tag databases. Turn `0xdAC1...` into "Tether USDT" and `0x7a25...` into "Binance Hot Wallet 14."
 
-### Phase 2: Smarter Graph Analysis
+### Phase 2: Alpha Signals
 
-**Goal**: Move from "run algorithms" to "surface actionable insights automatically"
+**Goal**: Turn network analysis into actionable trade signals
 
-- [ ] **Temporal graphs** — Track how the network evolves over time. Which communities are growing? Which addresses became central recently?
-- [ ] **Motif detection** — Find recurring transaction patterns (triangular trades, hub-and-spoke, chains). These reveal wash trading, layered money laundering, and MEV strategies.
-- [ ] **Flow analysis** — Max-flow / min-cut between addresses. "What's the maximum value that could flow from A to B through the network?"
-- [ ] **Address classification** — Auto-label addresses as: EOA, DEX, CEX, bridge, mixer, lending protocol, NFT marketplace, etc. using transaction pattern heuristics.
-- [ ] **Risk scoring** — Composite risk score combining anomaly detection, proximity to known bad actors, transaction pattern irregularities, and mixer usage.
+- [ ] **Accumulation detection** — Flag tokens where a cluster of high-PageRank wallets are buying simultaneously. If 5 historically profitable wallets all buy the same token within 48 hours, that's a signal.
+- [ ] **Fund flow tracking** — Trace large movements end-to-end. When a whale moves $10M from Binance to a DEX, what do they buy? When they move tokens to a new wallet, where does it go next?
+- [ ] **Pre-listing detection** — Identify tokens receiving unusual smart money inflows before CEX listings or major announcements.
+- [ ] **Wash trading filter** — Use community detection to identify circular trading patterns. Filter them out of volume metrics to see real demand.
+- [ ] **Correlation signals** — "Wallets that bought token X also bought token Y within 7 days." Find basket trades and thematic plays.
+- [ ] **Temporal analysis** — Track how wallet clusters evolve week over week. A growing community around a new protocol is bullish. A shrinking one is a warning sign.
 
-### Phase 3: Better ML
+### Phase 3: Real-Time Monitoring
 
-**Goal**: Beat the 79% link prediction baseline and add more predictive capabilities
+**Goal**: Get signals as they happen, not hours later
 
-- [ ] **Richer node features** — Current features are just degree/value stats. Add: gas usage patterns, time-of-day activity, contract interaction diversity, account age.
-- [ ] **Temporal GNN** — Use TGN (Temporal Graph Networks) to capture time-dependent patterns. An address that suddenly changes behavior is more interesting than one that's always been weird.
-- [ ] **Subgraph-level anomaly detection** — Don't just flag individual addresses. Flag suspicious *patterns* (e.g., a ring of 5 addresses cycling funds).
-- [ ] **Transfer learning across chains** — Train on Ethereum, fine-tune on Arbitrum. Network patterns should be similar across EVM chains.
-- [ ] **Explainable predictions** — For any flagged address, show *why* it was flagged: "High anomaly score because: (1) unusual in-degree spike, (2) all counterparties are <7 days old, (3) 94% of value flows to a single address."
+- [ ] **WebSocket block streaming** — Subscribe to new blocks in real-time instead of batch fetching.
+- [ ] **Live smart money feed** — Real-time stream: "Wallet 0xabc (PageRank #47, +340% 90d P&L) just bought 50 ETH worth of TOKEN on Uniswap."
+- [ ] **Alert system** — Configurable alerts: "Notify me when any top-100 PageRank wallet buys token X" or "Alert when 3+ wallets from cluster #42 make the same trade."
+- [ ] **Telegram / Discord bot** — Push alerts to where traders already are. Format: wallet label, action, amount, context (their P&L history, what cluster they belong to).
+- [ ] **Incremental graph updates** — Add new edges without rebuilding the full graph. Keep PageRank and community assignments current within seconds of a new block.
 
-### Phase 4: Real-Time & Monitoring
+### Phase 4: Portfolio Intelligence
 
-**Goal**: Move from "batch analysis" to "live monitoring"
+**Goal**: Help traders make better decisions about their own positions
 
-- [ ] **WebSocket block streaming** — Subscribe to new blocks in real-time instead of polling.
-- [ ] **Incremental graph updates** — Add new edges to the graph without rebuilding from scratch.
-- [ ] **Alert system** — "Notify me when address X receives > 100 ETH" or "Alert when a new address enters community #42."
-- [ ] **Live dashboard** — Auto-refresh dashboard as new blocks come in. Show real-time transaction flow animation.
+- [ ] **Portfolio X-ray** — Input your own wallets. See which smart money communities you overlap with, which you don't. "You hold 60% of what Cluster #7 (DeFi yield farmers) holds. You're missing: TOKEN_A, TOKEN_B."
+- [ ] **Exit signal detection** — "3 of the 5 top wallets that bought TOKEN_X before its last pump have started selling this week."
+- [ ] **Counterparty analysis** — For any trade you're considering: who's on the other side? Are smart money wallets selling what you're buying?
+- [ ] **Network-based risk score** — A token held by 1000 unconnected wallets is safer than one held by 1000 wallets that are all controlled by the same cluster.
+- [ ] **Cross-chain tracking** — Detect the same entity operating across Ethereum, Arbitrum, Base. Follow smart money as they rotate between L1 and L2s.
 
-### Phase 5: API & Integration
+### Phase 5: Product & Distribution
 
-**Goal**: Make Decentralizer useful as infrastructure, not just a dashboard
+**Goal**: Ship something traders will actually pay for
 
-- [ ] **REST API** — FastAPI endpoints: `/address/{addr}/metrics`, `/graph/communities`, `/predict/link?from=X&to=Y`, `/risk/{addr}`
-- [ ] **Export formats** — GraphML, GEXF, CSV, JSON export for use in Gephi, Neo4j, or other tools.
-- [ ] **Webhook integrations** — Push alerts to Slack, Discord, Telegram, email.
-- [ ] **Notebook integration** — Jupyter kernel extension for interactive analysis with the Decentralizer graph.
+- [ ] **REST API** — FastAPI endpoints for programmatic access. Let quant traders integrate signals into their own systems. Endpoints: `/smart-money/top`, `/wallet/{addr}/score`, `/signals/accumulation`, `/token/{addr}/holder-network`.
+- [ ] **Better visualization** — Replace pyvis with GPU-accelerated rendering (deck.gl or Sigma.js) for interactive exploration of large wallet networks. Click a whale, expand their network, trace flows visually.
+- [ ] **Wallet profiles** — Rich profile pages: P&L history, current holdings, network position, community membership, similar wallets, activity timeline.
+- [ ] **Signal backtesting** — "If I had followed the top 50 PageRank wallets' buys over the last 6 months, what would my return be?" Validate the alpha before trading on it.
+- [ ] **Mobile-friendly dashboard** — Responsive layout. Traders check signals from their phone.
+- [ ] **Saved screens & alerts dashboard** — Personal workspace with saved queries, active alerts, watchlist performance.
 
-### Phase 6: UX & Visualization
+### Phase 6: Competitive Moat
 
-**Goal**: Make the dashboard genuinely useful for non-technical users
+**Goal**: Build defensible advantages that free tools can't replicate
 
-- [ ] **Better graph viz** — Replace pyvis with deck.gl or Sigma.js for GPU-accelerated rendering of large graphs (current limit: ~2000 edges).
-- [ ] **Address profiles** — Rich profile pages with activity timeline, community membership, risk breakdown, similar addresses.
-- [ ] **Investigation mode** — Click an address, expand its neighborhood, trace fund flows interactively. Like a blockchain Maltego.
-- [ ] **Saved queries & reports** — Save analysis configurations, generate PDF reports.
-- [ ] **Dark pool detection dashboard** — Dedicated view for identifying suspicious activity clusters.
+- [ ] **Proprietary wallet labels** — Build the most comprehensive wallet labeling database through a combination of on-chain heuristics, community contributions, and ML classification.
+- [ ] **Temporal GNNs** — Train models on time-series graph data. Predict which wallets will become influential *before* they do. Early detection of emerging smart money.
+- [ ] **Multi-chain graph fusion** — Build a unified graph across all EVM chains. Most tools are single-chain. Cross-chain intelligence is rare and valuable.
+- [ ] **LLM-powered research assistant** — "Tell me everything about this wallet cluster and what they've been doing this week" — with full context from the graph, not just a ChatGPT wrapper.
+- [ ] **Signal marketplace** — Let power users publish and monetize their own signal strategies built on Decentralizer's data.
+
+---
+
+## Why This Wins
+
+The on-chain analytics space is crowded (Nansen, Arkham, Dune, DeBank), but most tools are:
+
+1. **Dashboard-first** — They show data, not signals. Traders have to manually interpret charts and tables.
+2. **Address-first** — They analyze individual wallets. They don't show the *network* between wallets, which is where the real alpha lives.
+3. **Backward-looking** — They tell you what happened. Graph ML can predict what will happen next.
+
+Decentralizer's edge is **graph intelligence**: treating the blockchain as a network, not a ledger. Community detection, influence propagation, and GNN-based prediction are structurally different from what Dune dashboards or Nansen labels provide.
 
 ---
 
@@ -182,11 +200,13 @@ uv run decentralizer dashboard
 
 ---
 
-## Contributing
+## Priority Order
 
-This is a research/portfolio project. Key areas where contributions would be valuable:
-
-1. **Token transfer parsing** — ERC-20 event log decoding
-2. **Graph visualization** — GPU-accelerated large graph rendering
-3. **Address labeling** — Integrating public label databases
-4. **Temporal analysis** — Time-windowed graph metrics
+| Priority | Phase | Why First |
+|---|---|---|
+| **NOW** | Phase 1: Smart Money Tracking | Can't do anything useful without token transfer data and wallet P&L |
+| **Next** | Phase 2: Alpha Signals | This is the product — without signals, it's just a research tool |
+| **Then** | Phase 3: Real-Time | Stale signals are worthless. Traders need speed |
+| **Then** | Phase 4: Portfolio Intelligence | Deepens engagement — makes it personal to each user |
+| **Later** | Phase 5: Product & Distribution | API + UX polish for growth |
+| **Long-term** | Phase 6: Competitive Moat | Defensibility through data + ML advantages |
