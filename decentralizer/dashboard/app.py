@@ -1,6 +1,10 @@
 """Streamlit multi-page application entry point."""
 
+from pathlib import Path
+
 import streamlit as st
+
+PAGES_DIR = Path(__file__).parent / "pages"
 
 
 def main():
@@ -13,16 +17,16 @@ def main():
 
     pages = {
         "Address Explorer": [
-            st.Page("decentralizer/dashboard/pages/explorer.py", title="Address Explorer", icon="🔍"),
+            st.Page(str(PAGES_DIR / "explorer.py"), title="Address Explorer", icon="🔍"),
         ],
         "Graph Analysis": [
-            st.Page("decentralizer/dashboard/pages/graph_viz.py", title="Graph Visualization", icon="🕸️"),
-            st.Page("decentralizer/dashboard/pages/analytics.py", title="Graph Analytics", icon="📊"),
-            st.Page("decentralizer/dashboard/pages/communities.py", title="Communities", icon="👥"),
+            st.Page(str(PAGES_DIR / "graph_viz.py"), title="Graph Visualization", icon="🕸️"),
+            st.Page(str(PAGES_DIR / "analytics.py"), title="Graph Analytics", icon="📊"),
+            st.Page(str(PAGES_DIR / "communities.py"), title="Communities", icon="👥"),
         ],
         "Machine Learning": [
-            st.Page("decentralizer/dashboard/pages/ml.py", title="ML Predictions", icon="🤖"),
-            st.Page("decentralizer/dashboard/pages/chat.py", title="AI Chat", icon="💬"),
+            st.Page(str(PAGES_DIR / "ml.py"), title="ML Predictions", icon="🤖"),
+            st.Page(str(PAGES_DIR / "chat.py"), title="AI Chat", icon="💬"),
         ],
     }
 
