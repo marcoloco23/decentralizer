@@ -20,7 +20,7 @@ def cli():
 @cli.command()
 @click.option("--chain", default="ethereum", help="Chain name or ID (ethereum, arbitrum, optimism, base, polygon)")
 @click.option("--blocks", default=100, help="Number of blocks to fetch")
-@click.option("--concurrency", default=10, help="Max concurrent requests")
+@click.option("--concurrency", default=50, help="Max concurrent requests")
 def fetch(chain: str, blocks: int, concurrency: int):
     """Fetch blockchain data from an EVM chain."""
     from decentralizer.chain.registry import resolve_chain
@@ -28,18 +28,16 @@ def fetch(chain: str, blocks: int, concurrency: int):
     from decentralizer.storage.database import get_connection, insert_blocks, insert_transactions
 
     chain_config = resolve_chain(chain)
-    click.echo(f"Fetching {blocks} blocks from {chain_config.name} (chain_id={chain_config.chain_id})...")
+    click.echo(f"Fetching {blocks} blocks from {chain_config.name} (chain_id={chain_config.chain_id}, concurrency={concurrency})...")
 
     fetcher = BlockFetcher(chain_config.chain_id, max_concurrent=concurrency)
 
     async def _fetch():
         return await fetcher.fetch_latest(num_blocks=blocks)
 
-    block_models, tx_models = asyncio.run(_fetch())
+    blocks_df, txs_df = asyncio.run(_fetch())
 
     conn = get_connection()
-    blocks_df = fetcher.blocks_to_dataframe(block_models)
-    txs_df = fetcher.transactions_to_dataframe(tx_models)
 
     n_blocks = insert_blocks(conn, blocks_df)
     n_txs = insert_transactions(conn, txs_df)
