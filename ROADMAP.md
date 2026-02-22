@@ -210,3 +210,96 @@ uv run decentralizer dashboard
 | **Then** | Phase 4: Portfolio Intelligence | Deepens engagement — makes it personal to each user |
 | **Later** | Phase 5: Product & Distribution | API + UX polish for growth |
 | **Long-term** | Phase 6: Competitive Moat | Defensibility through data + ML advantages |
+
+---
+
+## Numerai Integration: On-Chain Feature Pipeline
+
+### Status (2026-02-22)
+
+**Code: Complete. Data: Not yet collected.**
+
+Phase 1 code (token transfers, DEX trades, smart money) is written but hasn't been run against the DB. Phase 2 code (on-chain features → Numerai) is implemented including eywa_v2 integration. Next step is populating the data pipeline.
+
+### What Was Built
+
+#### New module: `decentralizer/features/`
+| File | Purpose |
+|------|---------|
+| `token_mapping.py` | CoinGecko symbol→address resolution for 300 Numerai symbols |
+| `on_chain.py` | 18 raw per-token features via SQL (holders, concentration, smart money, DEX) |
+| `normalize.py` | Cross-sectional quantile normalization + 20d/60d rolling windows |
+| `export_numerai.py` | Export as Parquet (inference latest or full historical) + S3 upload |
+
+#### Modified
+- `storage/database.py` — 2 new tables (`token_mapping`, `token_features`) + CRUD
+- `cli.py` — 3 new commands: `map-tokens`, `compute-features`, `export-features`
+- `tokens/constants.py` — CoinGecko chain prefix mapping
+
+#### eywa_v2 integration (at `~/Stocks/eywa_v2/`)
+- **New**: `src/alphaos/features/onchain_features.py` — merger module
+- **Modified**: `src/alphaos/data/crypto_loader.py` — auto-merges on-chain features in `prepare_for_alphaos()`
+- **Modified**: `src/alphaos/core/manager.py` — merges on-chain features in `predict()` for crypto
+
+### 18 Raw Features Per Token Per Date
+- **Holder metrics**: holder_count, new_holders_7d, holder_growth_rate
+- **Concentration**: top10_concentration, gini_coefficient, whale_transfer_count
+- **Smart money**: smart_money_inflow_pct, smart_money_outflow_pct, smart_money_net_flow, smart_money_holder_pct
+- **Network activity**: daily_transfers, daily_unique_senders, daily_unique_receivers, transfer_velocity
+- **DEX signals**: dex_volume_usd, dex_trade_count, dex_unique_traders, buy_sell_ratio
+
+After rolling windows (20d, 60d) + acceleration + quantile normalization: **~72 `feature_onchain_*` columns**.
+
+### Data Collection → Training Runbook
+
+**Infura free tier**: Full archive access, 3M credits/day, ~11,700 eth_getLogs calls/day. Enough for 2 years of data in one day.
+
+```bash
+# 1. Fetch ~2 years of token transfers (~2-4 hours)
+decentralizer fetch-transfers --chain ethereum \
+    --start-block 18900000 --end-block 21500000 \
+    --batch-size 500 --concurrency 50
+
+# 2. Resolve token metadata (~5 min)
+decentralizer resolve-tokens --chain-id 1
+
+# 3. Backfill prices from DeFiLlama (~30 min)
+decentralizer backfill-prices --chain-id 1
+
+# 4. Graph analysis + smart money scoring (~10 min)
+decentralizer analyze --chain-id 1
+decentralizer score --chain-id 1
+
+# 5. Map Numerai symbols to on-chain addresses (~15 min)
+decentralizer map-tokens \
+    --live-data ~/Stocks/eywa_v2/data/store/numerai/crypto_live.parquet
+
+# 6. Backfill historical features (~30 min)
+decentralizer compute-features --chain-id 1 \
+    --start-date 2024-01-01 --end-date 2026-02-22
+
+# 7. Export historical parquet for training
+decentralizer export-features --historical \
+    --output ~/Stocks/eywa_v2/data/store/onchain_features_historical.parquet
+
+# 8. Train in eywa_v2 (on-chain features auto-merge)
+cd ~/Stocks/eywa_v2
+alphaos train -t crypto
+
+# 9. For daily inference:
+cd "/Users/marcsperzel/Local Documents/Projects/Archive/decentralizer"
+decentralizer compute-features --chain-id 1
+decentralizer export-features \
+    --output ~/Stocks/eywa_v2/data/store/onchain_features_live.parquet
+cd ~/Stocks/eywa_v2
+alphaos predict -t crypto
+```
+
+### Verification Checklist
+- [ ] `token_transfers` table has >100K rows spanning 2+ years
+- [ ] `smart_money_scores` table has >100 ranked wallets
+- [ ] `token_mapping` maps 50+ Numerai symbols to Ethereum addresses
+- [ ] `token_features` has rows for multiple dates
+- [ ] Historical parquet has ~72 feature columns, values in [0,1]
+- [ ] `alphaos train -t crypto` reports on-chain features merged
+- [ ] Trained model includes `feature_onchain_*` in its feature list

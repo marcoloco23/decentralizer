@@ -412,28 +412,53 @@ def map_tokens(live_data: str, rate_limit: float):
 @cli.command("compute-features")
 @click.option("--chain-id", default=1)
 @click.option("--date", "as_of_date", default=None, help="Date to compute features for (YYYY-MM-DD, default: today)")
-def compute_features(chain_id: int, as_of_date: str | None):
-    """Compute on-chain token features for all mapped tokens."""
-    from datetime import date as dt_date
+@click.option("--start-date", default=None, help="Start date for backfill range (YYYY-MM-DD)")
+@click.option("--end-date", default=None, help="End date for backfill range (YYYY-MM-DD, default: today)")
+def compute_features(chain_id: int, as_of_date: str | None, start_date: str | None, end_date: str | None):
+    """Compute on-chain token features for all mapped tokens.
+
+    Use --date for a single day, or --start-date/--end-date for historical backfill.
+    """
+    from datetime import date as dt_date, timedelta
     from decentralizer.storage.database import get_connection
     from decentralizer.features.on_chain import compute_all_token_features
 
     conn = get_connection()
 
-    if as_of_date:
-        target_date = dt_date.fromisoformat(as_of_date)
+    if start_date:
+        # Backfill mode: compute features for every day in range
+        s = dt_date.fromisoformat(start_date)
+        e = dt_date.fromisoformat(end_date) if end_date else dt_date.today()
+        n_days = (e - s).days + 1
+        click.echo(f"Backfilling features for chain_id={chain_id} from {s} to {e} ({n_days} days)...")
+
+        total_rows = 0
+        current = s
+        while current <= e:
+            features_df = compute_all_token_features(conn, chain_id, as_of_date=current)
+            n = len(features_df)
+            total_rows += n
+            if n > 0:
+                click.echo(f"  {current}: {n} tokens")
+            current += timedelta(days=1)
+
+        click.echo(f"Backfill complete: {total_rows} total token-day rows.")
     else:
-        target_date = dt_date.today()
+        # Single date mode
+        if as_of_date:
+            target_date = dt_date.fromisoformat(as_of_date)
+        else:
+            target_date = dt_date.today()
 
-    click.echo(f"Computing on-chain features for chain_id={chain_id} as of {target_date}...")
+        click.echo(f"Computing on-chain features for chain_id={chain_id} as of {target_date}...")
 
-    features_df = compute_all_token_features(conn, chain_id, as_of_date=target_date)
+        features_df = compute_all_token_features(conn, chain_id, as_of_date=target_date)
 
-    if features_df.empty:
-        click.echo("No features computed. Run `map-tokens` and `fetch-transfers` first.")
-    else:
-        non_zero = (features_df.select_dtypes(include="number").fillna(0) != 0).any(axis=1).sum()
-        click.echo(f"Computed features for {len(features_df)} tokens ({non_zero} with non-zero data).")
+        if features_df.empty:
+            click.echo("No features computed. Run `map-tokens` and `fetch-transfers` first.")
+        else:
+            non_zero = (features_df.select_dtypes(include="number").fillna(0) != 0).any(axis=1).sum()
+            click.echo(f"Computed features for {len(features_df)} tokens ({non_zero} with non-zero data).")
 
     conn.close()
 
@@ -441,21 +466,32 @@ def compute_features(chain_id: int, as_of_date: str | None):
 @cli.command("export-features")
 @click.option("--chain-id", default=1)
 @click.option("--output", default="data/inference_features.parquet", help="Output Parquet path")
+@click.option("--historical", is_flag=True, default=False, help="Export full history (for training) instead of latest only")
 @click.option("--upload-s3", is_flag=True, default=False, help="Upload to S3 inference store")
-def export_features(chain_id: int, output: str, upload_s3: bool):
-    """Export quantile-normalized on-chain features for Numerai inference."""
+def export_features(chain_id: int, output: str, historical: bool, upload_s3: bool):
+    """Export quantile-normalized on-chain features for Numerai.
+
+    Default: export latest date only (for inference).
+    With --historical: export all dates (for training integration with eywa_v2).
+    """
     from decentralizer.storage.database import get_connection
-    from decentralizer.features.export_numerai import export_inference_features, upload_to_s3
+    from decentralizer.features.export_numerai import export_inference_features, export_historical_features, upload_to_s3
 
     conn = get_connection()
-    click.echo(f"Exporting inference features for chain_id={chain_id}...")
 
-    path = export_inference_features(conn, chain_id, output_path=output)
+    if historical:
+        if output == "data/inference_features.parquet":
+            output = "data/onchain_features_historical.parquet"
+        click.echo(f"Exporting historical on-chain features for chain_id={chain_id}...")
+        path = export_historical_features(conn, chain_id, output_path=output)
+    else:
+        click.echo(f"Exporting inference features for chain_id={chain_id}...")
+        path = export_inference_features(conn, chain_id, output_path=output)
 
     import pandas as pd
     df = pd.read_parquet(path)
     feature_cols = [c for c in df.columns if c.startswith("feature_")]
-    click.echo(f"Exported {len(df)} symbols with {len(feature_cols)} features to {path}")
+    click.echo(f"Exported {len(df)} rows with {len(feature_cols)} features to {path}")
 
     if feature_cols:
         click.echo(f"Feature columns: {', '.join(feature_cols[:10])}{'...' if len(feature_cols) > 10 else ''}")
