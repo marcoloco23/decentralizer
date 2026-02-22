@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from decentralizer.chain.provider import ChainProvider
+from decentralizer.tokens.constants import TRANSFER_TOPIC
 
 
 class BlockFetcher:
@@ -112,3 +113,51 @@ class BlockFetcher:
         latest = await self.provider.get_latest_block_number()
         start = latest - num_blocks + 1
         return await self.fetch_blocks(start, latest, progress=progress)
+
+    # --- ERC-20 token transfer fetching ---
+
+    async def _fetch_logs_batch(self, from_block: int, to_block: int) -> list[dict]:
+        """Fetch Transfer event logs for a block range. Splits on error."""
+        async with self.semaphore:
+            try:
+                return await self.provider.get_logs(
+                    from_block=from_block,
+                    to_block=to_block,
+                    topics=[TRANSFER_TOPIC],
+                )
+            except Exception:
+                if to_block - from_block > 0:
+                    mid = (from_block + to_block) // 2
+                    left = await self._fetch_logs_batch(from_block, mid)
+                    right = await self._fetch_logs_batch(mid + 1, to_block)
+                    return left + right
+                return []
+
+    async def fetch_token_transfers(
+        self,
+        start_block: int,
+        end_block: int,
+        batch_size: int = 500,
+        progress: bool = True,
+    ) -> pd.DataFrame:
+        """Fetch ERC-20 Transfer events using eth_getLogs in batches."""
+        from decentralizer.tokens.transfers import parse_transfer_logs
+
+        batches = []
+        for b in range(start_block, end_block + 1, batch_size):
+            batches.append((b, min(b + batch_size - 1, end_block)))
+
+        tasks = [self._fetch_logs_batch(f, t) for f, t in batches]
+        all_logs: list[dict] = []
+
+        desc = f"Fetching transfer logs {start_block}-{end_block}"
+        for coro in tqdm(
+            asyncio.as_completed(tasks),
+            total=len(tasks),
+            desc=desc,
+            disable=not progress,
+        ):
+            logs = await coro
+            all_logs.extend(logs)
+
+        return parse_transfer_logs(all_logs, self.chain_id)

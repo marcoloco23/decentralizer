@@ -42,3 +42,21 @@ class ChainProvider:
 
     async def get_transaction_receipt(self, tx_hash: str):
         return await self.w3.eth.get_transaction_receipt(tx_hash)
+
+    async def get_logs(
+        self,
+        from_block: int,
+        to_block: int,
+        topics: list[str] | None = None,
+        address: str | list[str] | None = None,
+    ) -> list[dict]:
+        """Fetch event logs for a block range with optional topic/address filter."""
+        filter_params: dict = {
+            "fromBlock": from_block,
+            "toBlock": to_block,
+        }
+        if topics:
+            filter_params["topics"] = topics
+        if address:
+            filter_params["address"] = address
+        return await self.w3.eth.get_logs(filter_params)

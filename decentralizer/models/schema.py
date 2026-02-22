@@ -48,3 +48,71 @@ class AddressMetrics(BaseModel):
     influence_score: float = 0.0
     community_id: int = -1
     anomaly_score: float = 0.0
+
+
+class TokenTransfer(BaseModel):
+    chain_id: int = Field(default=1)
+    tx_hash: str
+    log_index: int
+    block_number: int
+    token_address: str
+    from_address: str
+    to_address: str
+    value_raw: str = Field(description="Raw uint256 as string to avoid overflow")
+    value_decimal: float | None = None
+    timestamp: int = 0
+
+
+class TokenMetadata(BaseModel):
+    chain_id: int = Field(default=1)
+    address: str
+    symbol: str = ""
+    name: str = ""
+    decimals: int = 18
+
+
+class TokenPrice(BaseModel):
+    chain_id: int = Field(default=1)
+    token_address: str
+    date: str = Field(description="Date string YYYY-MM-DD")
+    price_usd: float
+    source: str = "defillama"
+
+
+class DexTrade(BaseModel):
+    chain_id: int = Field(default=1)
+    tx_hash: str
+    log_index: int
+    block_number: int
+    timestamp: int
+    dex: str
+    trader: str
+    token_in: str
+    token_out: str
+    amount_in: float
+    amount_out: float
+    amount_usd: float | None = None
+
+
+class WalletPnl(BaseModel):
+    chain_id: int = Field(default=1)
+    address: str
+    token_address: str
+    cost_basis: float = 0.0
+    quantity: float = 0.0
+    realized_pnl: float = 0.0
+    unrealized_pnl: float = 0.0
+    total_pnl: float = 0.0
+    last_updated: int = 0
+
+
+class SmartMoneyScore(BaseModel):
+    chain_id: int = Field(default=1)
+    address: str
+    page_rank_score: float = 0.0
+    pnl_score: float = 0.0
+    early_entry_score: float = 0.0
+    concentration_score: float = 0.0
+    composite_score: float = 0.0
+    rank: int = 0
+    last_updated: int = 0

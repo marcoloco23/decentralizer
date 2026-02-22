@@ -24,6 +24,9 @@ def main():
             st.Page(str(PAGES_DIR / "analytics.py"), title="Graph Analytics", icon="📊"),
             st.Page(str(PAGES_DIR / "communities.py"), title="Communities", icon="👥"),
         ],
+        "Smart Money": [
+            st.Page(str(PAGES_DIR / "smart_money.py"), title="Smart Money Leaderboard", icon="💰"),
+        ],
         "Machine Learning": [
             st.Page(str(PAGES_DIR / "ml.py"), title="ML Predictions", icon="🤖"),
             st.Page(str(PAGES_DIR / "chat.py"), title="AI Chat", icon="💬"),
