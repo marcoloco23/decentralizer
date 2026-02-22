@@ -1,0 +1,35 @@
+[project]
+name = "decentralizer"
+version = "2.0.0"
+description = "Multi-chain blockchain intelligence platform with GNN + LLM capabilities"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "web3>=7.0",
+    "streamlit>=1.42",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "duckdb>=1.1",
+    "networkx>=3.2",
+    "python-igraph>=0.11",
+    "torch>=2.2",
+    "torch-geometric>=2.5",
+    "anthropic>=0.42",
+    "pyvis>=0.3",
+    "plotly>=5.18",
+    "click>=8.1",
+    "pandas>=2.1",
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+    "scikit-learn>=1.4",
+    "pyarrow>=15.0",
+]
+
+[project.scripts]
+decentralizer = "decentralizer.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["decentralizer"]
